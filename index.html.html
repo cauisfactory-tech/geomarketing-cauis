@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa estratégico Caui's Factory - Lima</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root {
+  --bg:#fffaf6; --panel:#ffffff; --text:#2b211b; --muted:#6b625d;
+  --accent:#a04b2a; --border:#eadfd7; --p1:#b42318; --p2:#f79009; --p3:#2e90fa;
+}
+* { box-sizing:border-box; }
+body { margin:0; font-family:Arial,Helvetica,sans-serif; background:var(--bg); color:var(--text); }
+header { padding:18px 20px 12px; background:var(--panel); border-bottom:1px solid var(--border); }
+h1 { margin:0 0 6px; font-size:22px; }
+.subtitle { color:var(--muted); font-size:14px; line-height:1.45; }
+.layout { display:grid; grid-template-columns:360px 1fr; min-height:calc(100vh - 98px); }
+.sidebar { background:var(--panel); border-right:1px solid var(--border); padding:14px; overflow:auto; max-height:calc(100vh - 98px); }
+#map { min-height:calc(100vh - 98px); }
+.control-group { margin-bottom:14px; }
+.control-group h2 { font-size:15px; margin:0 0 8px; }
+label { display:block; margin:7px 0; font-size:14px; }
+select, input[type="text"] { width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:white; }
+.legend { display:grid; gap:6px; font-size:13px; }
+.legend span { display:flex; align-items:center; gap:7px; }
+.dot { width:12px; height:12px; border-radius:50%; display:inline-block; }
+.card { border:1px solid var(--border); border-radius:12px; padding:10px; margin:8px 0; cursor:pointer; background:white; }
+.card:hover { border-color:var(--accent); }
+.rank { font-weight:700; color:var(--accent); }
+.small { color:var(--muted); font-size:12px; line-height:1.4; }
+.badge { display:inline-block; padding:3px 7px; border-radius:999px; font-size:11px; margin-top:5px; background:#f4ebe6; }
+.note { font-size:12px; color:var(--muted); line-height:1.45; padding:10px; background:#fff6ef; border-radius:10px; }
+.popup-title { font-weight:700; margin-bottom:4px; }
+.popup-score { font-weight:700; color:var(--accent); }
+.popup-link { display:inline-block; margin-top:8px; }
+@media(max-width:820px){
+  .layout { grid-template-columns:1fr; }
+  .sidebar { max-height:none; border-right:0; border-bottom:1px solid var(--border); }
+  #map { min-height:65vh; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mapa estratégico de geomarketing — Caui's Factory</h1>
+  <div class="subtitle">35 hotspots de Lima priorizados para campañas de WhatsApp, Rappi y Didi. La prioridad mide oportunidad comercial, no cercanía real a tu punto de producción.</div>
+</header>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="control-group">
+      <h2>Filtros</h2>
+      <input id="search" type="text" placeholder="Buscar zona o distrito">
+      <label>Prioridad
+        <select id="priority">
+          <option value="all">Todas</option>
+          <option value="1">Prioridad 1 — puestos 1 al 10</option>
+          <option value="2">Prioridad 2 — puestos 11 al 20</option>
+          <option value="3">Prioridad 3 — puestos 21 al 35</option>
+        </select>
+      </label>
+      <label>Categoría
+        <select id="category"><option value="all">Todas</option></select>
+      </label>
+    </div>
+    <div class="control-group">
+      <h2>Leyenda</h2>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--p1)"></i> Prioridad 1</span>
+        <span><i class="dot" style="background:var(--p2)"></i> Prioridad 2</span>
+        <span><i class="dot" style="background:var(--p3)"></i> Prioridad 3</span>
+      </div>
+    </div>
+    <div id="count" class="small"></div>
+    <div id="list"></div>
+    <div class="note">
+      Antes de pagar publicidad, valida que cada punto esté dentro del radio y tiempo de entrega reales de tu cocina en Rappi o Didi. Los enlaces abren Google Maps para revisar la zona.
+    </div>
+  </aside>
+  <main id="map"></main>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const points = [{"rank": 1, "name": "San Isidro Financiero", "category": "Centros empresariales", "district": "San Isidro", "lat": -12.0974, "lon": -77.0362, "score": 100, "priority": 1, "reason": "Alta concentración de oficinas, cumpleaños laborales, reuniones y pedidos corporativos.", "products": "Boxes, coffee break, tortas, alfajores", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0974,-77.0362"}, {"rank": 2, "name": "Centro Empresarial Real", "category": "Centros empresariales", "district": "San Isidro", "lat": -12.0997, "lon": -77.0384, "score": 98, "priority": 1, "reason": "Edificios corporativos de alto flujo y mayor capacidad de gasto.", "products": "Boxes premium, coffee break, tortas", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0997,-77.0384"}, {"rank": 3, "name": "Jockey Plaza + zona empresarial El Derby", "category": "Centro comercial", "district": "Santiago de Surco", "lat": -12.0875, "lon": -76.9763, "score": 97, "priority": 1, "reason": "Combina trabajadores, visitantes, oficinas y alto flujo durante toda la semana.", "products": "Desayunos, tortas, alfajores, packs", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0875,-76.9763"}, {"rank": 4, "name": "Hospital Rebagliati", "category": "Hospital o clínica", "district": "Jesús María", "lat": -12.0787, "lon": -77.0405, "score": 96, "priority": 1, "reason": "Gran flujo de personal médico, administrativo, pacientes y acompañantes.", "products": "Desayunos, postres individuales, boxes", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0787,-77.0405"}, {"rank": 5, "name": "Clínica Delgado", "category": "Hospital o clínica", "district": "Miraflores", "lat": -12.1127, "lon": -77.0325, "score": 95, "priority": 1, "reason": "Público con afinidad a regalos, detalles y delivery de mayor ticket.", "products": "Boxes, desayunos, tortas pequeñas", "maps": "https://www.google.com/maps/search/?api=1&query=-12.1127,-77.0325"}, {"rank": 6, "name": "Universidad de Lima", "category": "Universidad", "district": "Santiago de Surco", "lat": -12.0849, "lon": -76.9718, "score": 94, "priority": 1, "reason": "Alta población estudiantil y cercanía a zonas residenciales y corporativas.", "products": "Alfajores, brownies, combos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0849,-76.9718"}, {"rank": 7, "name": "PUCP", "category": "Universidad", "district": "San Miguel", "lat": -12.0687, "lon": -77.0803, "score": 93, "priority": 1, "reason": "Concentración de estudiantes, docentes y personal administrativo.", "products": "Combos económicos, alfajores, cupcakes", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0687,-77.0803"}, {"rank": 8, "name": "Plaza San Miguel", "category": "Centro comercial", "district": "San Miguel", "lat": -12.0773, "lon": -77.0827, "score": 92, "priority": 1, "reason": "Centro comercial rodeado de universidades, viviendas y oficinas.", "products": "Tortas, desayunos, packs familiares", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0773,-77.0827"}, {"rank": 9, "name": "Real Plaza Salaverry", "category": "Centro comercial", "district": "Jesús María", "lat": -12.0893, "lon": -77.0518, "score": 91, "priority": 1, "reason": "Flujo de compradores, trabajadores y residentes con buena demanda de delivery.", "products": "Boxes, tortas, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0893,-77.0518"}, {"rank": 10, "name": "UPC Monterrico", "category": "Universidad", "district": "Santiago de Surco", "lat": -12.1043, "lon": -76.9629, "score": 90, "priority": 1, "reason": "Estudiantes y trabajadores jóvenes con alto uso de canales digitales.", "products": "Brownies, alfajores, combos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.1043,-76.9629"}, {"rank": 11, "name": "Torre Begonias y Canaval y Moreyra", "category": "Centros empresariales", "district": "San Isidro", "lat": -12.0932, "lon": -77.0249, "score": 89, "priority": 2, "reason": "Núcleo corporativo ideal para campañas de cumpleaños y reuniones.", "products": "Coffee break, boxes, tortas", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0932,-77.0249"}, {"rank": 12, "name": "Clínica Ricardo Palma", "category": "Hospital o clínica", "district": "San Isidro", "lat": -12.0906, "lon": -77.0284, "score": 88, "priority": 2, "reason": "Personal de salud y acompañantes con demanda durante todo el día.", "products": "Desayunos, boxes, postres individuales", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0906,-77.0284"}, {"rank": 13, "name": "Hospital Almenara", "category": "Hospital o clínica", "district": "La Victoria", "lat": -12.0572, "lon": -77.0219, "score": 87, "priority": 2, "reason": "Gran cantidad de trabajadores y visitantes; buena oportunidad para pedidos grupales.", "products": "Combos, desayunos, alfajores", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0572,-77.0219"}, {"rank": 14, "name": "Universidad del Pacífico", "category": "Universidad", "district": "Jesús María", "lat": -12.0837, "lon": -77.048, "score": 86, "priority": 2, "reason": "Estudiantes y personal con buen potencial de ticket y cercanía a oficinas.", "products": "Boxes, alfajores, coffee break", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0837,-77.048"}, {"rank": 15, "name": "Larcomar y Miraflores turístico", "category": "Centro comercial", "district": "Miraflores", "lat": -12.1326, "lon": -77.03, "score": 85, "priority": 2, "reason": "Visitantes, hoteles, residentes y trabajadores; útil para regalos y celebraciones.", "products": "Packs premium, tortas, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.1326,-77.03"}, {"rank": 16, "name": "MegaPlaza", "category": "Centro comercial", "district": "Independencia", "lat": -11.9946, "lon": -77.0615, "score": 84, "priority": 2, "reason": "Alta afluencia de trabajadores y familias de Lima Norte.", "products": "Packs familiares, tortas, alfajores", "maps": "https://www.google.com/maps/search/?api=1&query=-11.9946,-77.0615"}, {"rank": 17, "name": "Plaza Norte", "category": "Centro comercial", "district": "Independencia", "lat": -12.0061, "lon": -77.0605, "score": 83, "priority": 2, "reason": "Gran flujo comercial y de transporte, con público amplio.", "products": "Combos, tortas, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0061,-77.0605"}, {"rank": 18, "name": "UNMSM", "category": "Universidad", "district": "Cercado de Lima", "lat": -12.0562, "lon": -77.084, "score": 82, "priority": 2, "reason": "Amplia comunidad universitaria y alta sensibilidad a promociones.", "products": "Combos económicos, alfajores, brownies", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0562,-77.084"}, {"rank": 19, "name": "Clínica San Pablo Surco", "category": "Hospital o clínica", "district": "Santiago de Surco", "lat": -12.1187, "lon": -76.992, "score": 81, "priority": 2, "reason": "Zona residencial con demanda de regalos y atención médica privada.", "products": "Boxes, tortas pequeñas, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.1187,-76.992"}, {"rank": 20, "name": "Hospital del Niño San Borja", "category": "Hospital o clínica", "district": "San Borja", "lat": -12.107, "lon": -77.001, "score": 80, "priority": 2, "reason": "Familias, personal médico y acompañantes; demanda de detalles y agradecimientos.", "products": "Cupcakes, boxes, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.107,-77.001"}, {"rank": 21, "name": "La Rambla Brasil", "category": "Centro comercial", "district": "Breña", "lat": -12.0716, "lon": -77.0556, "score": 79, "priority": 3, "reason": "Combina centro comercial, viviendas, clínicas y oficinas cercanas.", "products": "Packs, tortas, alfajores", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0716,-77.0556"}, {"rank": 22, "name": "Open Plaza Angamos", "category": "Centro comercial", "district": "Surquillo", "lat": -12.1118, "lon": -77.0147, "score": 78, "priority": 3, "reason": "Zona conectada con Miraflores, Surquillo y San Borja.", "products": "Tortas, postres individuales, packs", "maps": "https://www.google.com/maps/search/?api=1&query=-12.1118,-77.0147"}, {"rank": 23, "name": "Centro Cívico + Real Plaza Centro Cívico", "category": "Centro comercial", "district": "Cercado de Lima", "lat": -12.057, "lon": -77.0364, "score": 77, "priority": 3, "reason": "Trabajadores públicos, oficinas, institutos y alto tránsito peatonal.", "products": "Combos, coffee break, tortas", "maps": "https://www.google.com/maps/search/?api=1&query=-12.057,-77.0364"}, {"rank": 24, "name": "Hospital Loayza", "category": "Hospital o clínica", "district": "Cercado de Lima", "lat": -12.0525, "lon": -77.0422, "score": 76, "priority": 3, "reason": "Amplia población médica, administrativa y de visitantes.", "products": "Desayunos, postres individuales, boxes", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0525,-77.0422"}, {"rank": 25, "name": "Mall del Sur", "category": "Centro comercial", "district": "San Juan de Miraflores", "lat": -12.1555, "lon": -76.9812, "score": 75, "priority": 3, "reason": "Alta afluencia familiar y comercial en Lima Sur.", "products": "Packs familiares, tortas, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.1555,-76.9812"}, {"rank": 26, "name": "Minka", "category": "Centro comercial", "district": "Callao", "lat": -12.0615, "lon": -77.1182, "score": 74, "priority": 3, "reason": "Punto comercial de gran flujo y compras familiares.", "products": "Packs familiares, alfajores, tortas", "maps": "https://www.google.com/maps/search/?api=1&query=-12.0615,-77.1182"}, {"rank": 27, "name": "ESAN", "category": "Universidad", "district": "Santiago de Surco", "lat": -12.103, "lon": -76.96, "score": 73, "priority": 3, "reason": "Estudiantes de posgrado y profesionales; potencial para pedidos corporativos.", "products": "Boxes premium, coffee break", "maps": "https://www.google.com/maps/search/?api=1&query=-12.103,-76.96"}, {"rank": 28, "name": "Universidad Ricardo Palma", "category": "Universidad", "district": "Santiago de Surco", "lat": -12.13, "lon": -76.979, "score": 72, "priority": 3, "reason": "Población estudiantil y cercanía a zonas residenciales.", "products": "Combos, alfajores, cupcakes", "maps": "https://www.google.com/maps/search/?api=1&query=-12.13,-76.979"}, {"rank": 29, "name": "USIL", "category": "Universidad", "district": "La Molina", "lat": -12.076, "lon": -76.951, "score": 71, "priority": 3, "reason": "Estudiantes y entorno residencial con uso intensivo de delivery.", "products": "Combos, boxes, brownies", "maps": "https://www.google.com/maps/search/?api=1&query=-12.076,-76.951"}, {"rank": 30, "name": "Hospital Cayetano Heredia", "category": "Hospital o clínica", "district": "San Martín de Porres", "lat": -12.023, "lon": -77.056, "score": 70, "priority": 3, "reason": "Polo médico y universitario de Lima Norte.", "products": "Desayunos, combos, postres individuales", "maps": "https://www.google.com/maps/search/?api=1&query=-12.023,-77.056"}, {"rank": 31, "name": "Gamarra", "category": "Zona comercial", "district": "La Victoria", "lat": -12.064, "lon": -77.014, "score": 69, "priority": 3, "reason": "Miles de trabajadores y comerciantes; alto potencial para pedidos grupales.", "products": "Combos económicos, alfajores, tortas", "maps": "https://www.google.com/maps/search/?api=1&query=-12.064,-77.014"}, {"rank": 32, "name": "Parque Kennedy", "category": "Zona comercial", "district": "Miraflores", "lat": -12.1211, "lon": -77.0297, "score": 68, "priority": 3, "reason": "Restaurantes, oficinas, turistas y residentes en un radio compacto.", "products": "Packs premium, postres, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.1211,-77.0297"}, {"rank": 33, "name": "Chacarilla", "category": "Zona residencial y empresarial", "district": "Santiago de Surco", "lat": -12.111, "lon": -76.992, "score": 67, "priority": 3, "reason": "Zona residencial y de oficinas con buen ticket promedio.", "products": "Boxes, tortas, desayunos", "maps": "https://www.google.com/maps/search/?api=1&query=-12.111,-76.992"}, {"rank": 34, "name": "Barranco Central", "category": "Zona gastronómica", "district": "Barranco", "lat": -12.149, "lon": -77.021, "score": 66, "priority": 3, "reason": "Público joven, restaurantes, hoteles y consumo por ocasión.", "products": "Postres, boxes, tortas pequeñas", "maps": "https://www.google.com/maps/search/?api=1&query=-12.149,-77.021"}, {"rank": 35, "name": "La Molina residencial", "category": "Zona residencial y empresarial", "district": "La Molina", "lat": -12.09, "lon": -76.95, "score": 65, "priority": 3, "reason": "Familias y urbanizaciones con potencial para cumpleaños y regalos.", "products": "Tortas, desayunos, packs familiares", "maps": "https://www.google.com/maps/search/?api=1&query=-12.09,-76.95"}];
+const map = L.map('map').setView([-12.08, -77.03], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const priorityColors = {1:'#b42318',2:'#f79009',3:'#2e90fa'};
+const markers = new Map();
+const categorySelect = document.getElementById('category');
+[...new Set(points.map(p=>p.category))].sort().forEach(c=>{
+  const o=document.createElement('option'); o.value=c; o.textContent=c; categorySelect.appendChild(o);
+});
+
+function makeIcon(p) {
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:30px;height:30px;border-radius:50%;background:${priorityColors[p.priority]};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)">${p.rank}</div>`,
+    iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-14]
+  });
+}
+
+points.forEach(p=>{
+  const marker=L.marker([p.lat,p.lon],{icon:makeIcon(p)})
+    .bindPopup(`<div class="popup-title">#${p.rank} — ${p.name}</div>
+      <div><span class="popup-score">${p.score}/100</span> · ${p.category}</div>
+      <div>${p.district}</div><p>${p.reason}</p>
+      <div><b>Productos:</b> ${p.products}</div>
+      <a class="popup-link" href="${p.maps}" target="_blank" rel="noopener">Abrir en Google Maps</a>`);
+  markers.set(p.rank, marker);
+});
+
+function render() {
+  const q=document.getElementById('search').value.trim().toLowerCase();
+  const pr=document.getElementById('priority').value;
+  const cat=document.getElementById('category').value;
+  markers.forEach(m=>map.removeLayer(m));
+  const filtered=points.filter(p=>
+    (pr==='all'||String(p.priority)===pr) &&
+    (cat==='all'||p.category===cat) &&
+    (!q||`${p.name} ${p.district} ${p.category}`.toLowerCase().includes(q))
+  );
+  filtered.forEach(p=>markers.get(p.rank).addTo(map));
+  document.getElementById('count').textContent=`Mostrando ${filtered.length} de ${points.length} ubicaciones`;
+  const list=document.getElementById('list'); list.innerHTML='';
+  filtered.forEach(p=>{
+    const d=document.createElement('div'); d.className='card';
+    d.innerHTML=`<div><span class="rank">#${p.rank}</span> <b>${p.name}</b></div>
+      <div class="small">${p.district} · Puntaje ${p.score}/100</div>
+      <span class="badge">${p.category}</span>`;
+    d.addEventListener('click',()=>{map.setView([p.lat,p.lon],14); markers.get(p.rank).openPopup();});
+    list.appendChild(d);
+  });
+  if(filtered.length){
+    const group=L.featureGroup(filtered.map(p=>markers.get(p.rank)));
+    map.fitBounds(group.getBounds().pad(0.16));
+  }
+}
+['search','priority','category'].forEach(id=>document.getElementById(id).addEventListener(id==='search'?'input':'change',render));
+render();
+</script>
+</body>
+</html>
